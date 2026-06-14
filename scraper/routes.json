@@ -1,0 +1,10 @@
+[
+  {"slug": "tokyo_kyoto",   "departure": "東京都", "arrival": "京都府"},
+  {"slug": "tokyo_osaka",   "departure": "東京都", "arrival": "大阪府"},
+  {"slug": "tokyo_aichi",   "departure": "東京都", "arrival": "愛知県"},
+  {"slug": "tokyo_miyagi",  "departure": "東京都", "arrival": "宮城県"},
+  {"slug": "kyoto_tokyo",   "departure": "京都府", "arrival": "東京都"},
+  {"slug": "osaka_tokyo",   "departure": "大阪府", "arrival": "東京都"},
+  {"slug": "aichi_tokyo",   "departure": "愛知県", "arrival": "東京都"},
+  {"slug": "miyagi_tokyo",  "departure": "宮城県", "arrival": "東京都"}
+]

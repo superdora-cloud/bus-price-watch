@@ -1,0 +1,13 @@
+# Python キャッシュ（自動生成されるため不要）
+__pycache__/
+*.pyc
+*.pyo
+
+# ローカル環境
+.env
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

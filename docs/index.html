@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高速バス最安値トラッカー</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --surface: #161a23;
+      --surface2: #1e2433;
+      --border: #2a3147;
+      --accent: #4f9eff;
+      --accent2: #ff6b6b;
+      --accent3: #ffd166;
+      --text: #e8eaf0;
+      --text-muted: #7a8299;
+      --text-dim: #4a5268;
+      --green: #06d6a0;
+      --font-body: 'Noto Sans JP', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── ヘッダー ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: linear-gradient(180deg, #12161f 0%, var(--bg) 100%);
+    }
+    .logo-mark {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+    header .subtitle { font-size: 11px; color: var(--text-muted); font-weight: 300; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    #updated-at { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── 共通レイアウト ── */
+    .search-panel {
+      display: grid; grid-template-columns: 280px 1fr;
+      height: calc(100vh - 65px);
+    }
+
+    /* 左: 検索フォーム */
+    .search-form-area {
+      border-right: 1px solid var(--border);
+      padding: 20px 16px;
+      display: flex; flex-direction: column; gap: 16px;
+      overflow-y: auto;
+    }
+    .form-section-title {
+      font-size: 10px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted); margin-bottom: 8px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-label { font-size: 11px; color: var(--text-muted); }
+    .form-input, .form-select {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 7px; color: var(--text);
+      font-family: var(--font-body); font-size: 12px;
+      padding: 8px 10px; outline: none;
+      transition: border-color 0.2s; width: 100%;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--accent); }
+    .form-select option { background: var(--surface2); }
+    .form-row { display: flex; align-items: center; gap: 8px; }
+    .form-row .form-select { flex: 1; }
+    .form-arrow { color: var(--text-dim); font-size: 12px; flex-shrink: 0; }
+
+    .btn-search {
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 7px;
+      font-family: var(--font-body); font-size: 13px; font-weight: 500;
+      padding: 10px; cursor: pointer; width: 100%;
+      transition: opacity 0.15s;
+    }
+    .btn-search:hover { opacity: 0.85; }
+    .btn-search:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* 結果エリア */
+    .search-result-area {
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .result-header {
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .result-title { font-size: 14px; font-weight: 700; flex: 1; }
+    .result-title .badge {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 4px; font-size: 10px; font-weight: 500;
+      font-family: var(--font-mono); margin-left: 8px;
+      vertical-align: middle;
+    }
+    .badge-up   { background: rgba(255,107,107,0.15); color: var(--accent2); }
+    .badge-down { background: rgba(6,214,160,0.15);   color: var(--green); }
+    .badge-flat { background: rgba(122,130,153,0.15); color: var(--text-muted); }
+
+    .result-chart-area {
+      flex: 1; padding: 20px 24px; position: relative; min-height: 0;
+    }
+    .result-chart-area canvas { max-height: 100%; }
+
+    .result-stats {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--border);
+    }
+    .stat-item { padding: 12px 20px; border-right: 1px solid var(--border); }
+    .stat-item:last-child { border-right: none; }
+    .stat-label {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-dim); margin-bottom: 3px;
+    }
+    .stat-value { font-family: var(--font-mono); font-size: 18px; font-weight: 500; color: var(--text); }
+    .stat-value.low  { color: var(--green); }
+    .stat-value.high { color: var(--accent2); }
+    .stat-value.days { color: var(--accent3); }
+
+    /* ── 空・ローディング ── */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; gap: 10px; color: var(--text-dim);
+    }
+    .empty-state .icon { font-size: 36px; }
+    .empty-state .msg  { font-size: 13px; }
+    .loading-overlay {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px; z-index: 100; transition: opacity 0.4s;
+    }
+    .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+    .error-banner {
+      background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3);
+      border-radius: 7px; padding: 10px 14px; margin: 16px 24px;
+      font-size: 12px; color: var(--accent2); display: none;
+    }
+
+    /* ── レスポンシブ ── */
+    @media (max-width: 768px) {
+      .search-panel {
+        grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto;
+      }
+      .search-form-area {
+        border-right: none; border-bottom: 1px solid var(--border); max-height: 220px;
+      }
+      .result-stats { grid-template-columns: repeat(2, 1fr); }
+      .stat-item:nth-child(2) { border-right: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">データを読み込み中...</div>
+</div>
+
+<header>
+  <div class="logo-mark">🚌</div>
+  <div>
+    <h1>高速バス最安値トラッカー</h1>
+    <div class="subtitle">バス比較なび 出発日別最安値</div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot" title="データ自動更新中"></div>
+    <div id="updated-at">--</div>
+  </div>
+</header>
+
+<div class="error-banner" id="error-banner"></div>
+
+<!-- ━━━ 出発日で探す ━━━ -->
+<div class="search-panel">
+
+  <!-- 左: 検索フォーム -->
+  <div class="search-form-area">
+    <div>
+      <div class="form-section-title">出発日</div>
+      <div class="form-group">
+        <label class="form-label" for="dep-date">日付を選択</label>
+        <input type="date" class="form-input" id="dep-date">
+      </div>
+    </div>
+    <div>
+      <div class="form-section-title">区間</div>
+      <div class="form-group">
+        <label class="form-label">出発地 → 到着地</label>
+        <div class="form-row">
+          <select class="form-select" id="dep-from">
+            <option value="">出発地を選択</option>
+          </select>
+          <span class="form-arrow">→</span>
+          <select class="form-select" id="dep-to">
+            <option value="">到着地を選択</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <button class="btn-search" id="btn-search" disabled>グラフを表示</button>
+
+    <!-- 直近の価格サマリー -->
+    <div id="quick-summary" style="display:none">
+      <div class="form-section-title" style="margin-bottom:10px">価格サマリー</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--text-muted)">現在の最安値</span>
+          <span style="font-family:var(--font-mono);font-size:16px;color:var(--green)" id="sum-current">--</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--text-muted)">過去最安値</span>
+          <span style="font-family:var(--font-mono);font-size:16px;color:var(--accent)" id="sum-allmin">--</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--text-muted)">記録開始から</span>
+          <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-muted)" id="sum-days">--</span>
+        </div>
+        <div style="margin-top:4px;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2)">
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">直近トレンド（7日）</div>
+          <div style="font-size:13px;font-weight:500" id="sum-trend">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右: グラフ結果 -->
+  <div class="search-result-area">
+    <div class="result-header">
+      <div class="result-title" id="result-title">
+        <span style="color:var(--text-dim)">出発日と区間を選択してください</span>
+      </div>
+    </div>
+    <div class="result-chart-area" id="result-chart-area">
+      <div class="empty-state" id="result-empty">
+        <div class="icon">🗓️</div>
+        <div class="msg">出発日と区間を入力して「グラフを表示」を押してください</div>
+      </div>
+      <canvas id="result-chart" style="display:none"></canvas>
+    </div>
+    <div class="result-stats">
+      <div class="stat-item">
+        <div class="stat-label">現在値</div>
+        <div class="stat-value" id="rs-current">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">過去最安値</div>
+        <div class="stat-value low" id="rs-min">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">過去最高値</div>
+        <div class="stat-value high" id="rs-max">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">記録日数</div>
+        <div class="stat-value days" id="rs-days">--</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ━━━ 状態 ━━━
+let dailyData = {};     // route -> departure_date -> [{date, price}]
+let dailyRoutes = [];   // 対象区間リスト
+let resultChart = null;
+
+// ━━━ データ読み込み ━━━
+async function loadData() {
+  try {
+    const dresp = await fetch('./daily_data.json?t=' + Date.now());
+    if (!dresp.ok) throw new Error(`HTTP ${dresp.status}`);
+    const djson = await dresp.json();
+    dailyData   = djson.data   || {};
+    dailyRoutes = djson.routes || [];
+
+    if (djson.updated_at) {
+      const d = new Date(djson.updated_at);
+      const fmt = new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+      const parts = fmt.formatToParts(d);
+      const p = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+      document.getElementById('updated-at').textContent =
+        `最終更新: ${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} JST`;
+    }
+
+    populateDepartureSelects();
+    document.getElementById('loading').classList.add('hidden');
+
+    // 出発日のデフォルトを今日から14日後に設定
+    const def = new Date();
+    def.setDate(def.getDate() + 14);
+    document.getElementById('dep-date').value = def.toISOString().slice(0, 10);
+    checkSearchReady();
+  } catch (e) {
+    const banner = document.getElementById('error-banner');
+    banner.textContent = `データの読み込みに失敗しました: ${e.message}`;
+    banner.style.display = 'block';
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+
+// ━━━ 共通ユーティリティ ━━━
+function clearStats(...ids) {
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '--'; });
+}
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ━━━ 検索フォーム: セレクトボックスを dailyRoutes から生成 ━━━
+function populateDepartureSelects() {
+  const depSet = new Set(dailyRoutes.map(r => r.split('→')[0]));
+  const fromSel = document.getElementById('dep-from');
+  const toSel   = document.getElementById('dep-to');
+
+  depSet.forEach(dep => {
+    const opt = document.createElement('option');
+    opt.value = dep; opt.textContent = dep;
+    fromSel.appendChild(opt);
+  });
+
+  // 出発地が選ばれたら到着地を更新
+  fromSel.addEventListener('change', () => {
+    const from = fromSel.value;
+    toSel.innerHTML = '<option value="">到着地を選択</option>';
+    dailyRoutes
+      .filter(r => r.startsWith(from + '→'))
+      .map(r => r.split('→')[1])
+      .forEach(arr => {
+        const opt = document.createElement('option');
+        opt.value = arr; opt.textContent = arr;
+        toSel.appendChild(opt);
+      });
+    checkSearchReady();
+  });
+
+  toSel.addEventListener('change', () => {
+    checkSearchReady();
+    updateQuickSummary();
+  });
+}
+
+function checkSearchReady() {
+  const date = document.getElementById('dep-date').value;
+  const from = document.getElementById('dep-from').value;
+  const to   = document.getElementById('dep-to').value;
+  document.getElementById('btn-search').disabled = !(date && from && to);
+}
+
+document.getElementById('dep-date').addEventListener('change', () => {
+  checkSearchReady();
+  updateQuickSummary();
+});
+
+// ━━━ クイックサマリー（フォーム左下）━━━
+function updateQuickSummary() {
+  const dateVal = document.getElementById('dep-date').value;
+  const from    = document.getElementById('dep-from').value;
+  const to      = document.getElementById('dep-to').value;
+  const summary = document.getElementById('quick-summary');
+
+  if (!dateVal || !from || !to) { summary.style.display = 'none'; return; }
+
+  const route  = `${from}→${to}`;
+  const points = dailyData[route]?.[dateVal] || [];
+
+  if (points.length === 0) { summary.style.display = 'none'; return; }
+
+  summary.style.display = 'block';
+
+  const latestPrice = points[points.length - 1].price;
+  const allMin = points.reduce((a, b) => a.price < b.price ? a : b).price;
+  const dayCount = points.length;
+
+  document.getElementById('sum-current').textContent = latestPrice.toLocaleString() + '円';
+  document.getElementById('sum-allmin').textContent  = allMin.toLocaleString() + '円';
+  document.getElementById('sum-days').textContent    = `${dayCount}日分のデータ`;
+
+  // 直近7日トレンド
+  const recent = points.slice(-7);
+  if (recent.length >= 2) {
+    const first = recent[0].price;
+    const last  = recent[recent.length - 1].price;
+    const diff  = last - first;
+    const pct   = ((diff / first) * 100).toFixed(1);
+    if (diff < 0) {
+      document.getElementById('sum-trend').innerHTML =
+        `<span style="color:var(--green)">↘ ${Math.abs(diff).toLocaleString()}円 下落 (${pct}%)</span> — <span style="font-size:11px;color:var(--text-muted)">今が狙い目かも</span>`;
+    } else if (diff > 0) {
+      document.getElementById('sum-trend').innerHTML =
+        `<span style="color:var(--accent2)">↗ ${diff.toLocaleString()}円 上昇 (+${pct}%)</span> — <span style="font-size:11px;color:var(--text-muted)">様子見を推奨</span>`;
+    } else {
+      document.getElementById('sum-trend').innerHTML =
+        `<span style="color:var(--text-muted)">→ 横ばい</span>`;
+    }
+  } else {
+    document.getElementById('sum-trend').textContent = 'データ不足';
+  }
+}
+
+// ━━━ 出発日グラフ表示 ━━━
+document.getElementById('btn-search').addEventListener('click', showDepartureChart);
+
+function showDepartureChart() {
+  const dateVal = document.getElementById('dep-date').value;
+  const from    = document.getElementById('dep-from').value;
+  const to      = document.getElementById('dep-to').value;
+  if (!dateVal || !from || !to) return;
+
+  const route  = `${from}→${to}`;
+  const points = dailyData[route]?.[dateVal] || [];
+
+  const canvas    = document.getElementById('result-chart');
+  const emptyEl   = document.getElementById('result-empty');
+  const titleEl   = document.getElementById('result-title');
+
+  // タイトル設定
+  const [y, m, d] = dateVal.split('-');
+  const dispDate = `${y}年${parseInt(m)}月${parseInt(d)}日`;
+  titleEl.textContent = '';
+
+  const titleText = document.createTextNode(`${from} → ${to}　出発: ${dispDate}`);
+  titleEl.appendChild(titleText);
+
+  if (points.length === 0) {
+    canvas.style.display = 'none';
+    emptyEl.style.display = 'flex';
+    emptyEl.querySelector('.msg').textContent = 'この区間・日付のデータがありません';
+    clearStats('rs-current','rs-min','rs-max','rs-days');
+    return;
+  }
+
+  // トレンドバッジ
+  const prices = points.map(p => p.price);
+  const recent7 = points.slice(-7);
+  let badgeHtml = '';
+  if (recent7.length >= 2) {
+    const diff = recent7[recent7.length-1].price - recent7[0].price;
+    if (diff < 0)      badgeHtml = `<span class="badge badge-down">↘ 下落中</span>`;
+    else if (diff > 0) badgeHtml = `<span class="badge badge-up">↗ 上昇中</span>`;
+    else               badgeHtml = `<span class="badge badge-flat">→ 横ばい</span>`;
+  }
+  if (badgeHtml) titleEl.insertAdjacentHTML('beforeend', badgeHtml);
+
+  canvas.style.display = 'block';
+  emptyEl.style.display = 'none';
+
+  const labels = points.map(p => p.date);
+  if (resultChart) resultChart.destroy();
+
+  // 最安値の日にアノテーション用の色分け
+  const minPrice = prices.reduce((a, b) => a < b ? a : b, prices[0]);
+  const pointColors = prices.map(p => p === minPrice ? '#06d6a0' : '#4f9eff');
+
+  resultChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: `${route}（${dateVal} 出発）`,
+        data: prices,
+        borderColor: '#4f9eff',
+        backgroundColor: hexToRgba('#4f9eff', 0.08),
+        borderWidth: 2,
+        pointRadius: prices.length > 60 ? 0 : 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: pointColors,
+        pointBorderColor: pointColors,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e2433', borderColor: '#2a3147', borderWidth: 1,
+          titleColor: '#7a8299', bodyColor: '#e8eaf0', padding: 10,
+          callbacks: {
+            label: ctx => {
+              const p = ctx.parsed.y;
+              const suffix = p === minPrice ? '  ✦ 最安値' : '';
+              return `  最安値: ${p.toLocaleString()}円${suffix}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(42,49,71,0.6)' },
+          ticks: { color: '#4a5268', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 10, maxRotation: 0 }
+        },
+        y: {
+          grid: { color: 'rgba(42,49,71,0.6)' },
+          ticks: { color: '#4a5268', font: { family: 'DM Mono', size: 10 }, callback: v => v.toLocaleString() + '円' }
+        }
+      }
+    }
+  });
+
+  // 統計
+  const latestPrice = prices[prices.length - 1];
+  const maxPrice = prices.reduce((a, b) => a > b ? a : b, prices[0]);
+  document.getElementById('rs-current').textContent = latestPrice.toLocaleString() + '円';
+  document.getElementById('rs-min').textContent     = minPrice.toLocaleString() + '円';
+  document.getElementById('rs-max').textContent     = maxPrice.toLocaleString() + '円';
+  document.getElementById('rs-days').textContent    = prices.length + '日';
+
+  // 現在値が最安値に近いか色変更
+  const ratio = (latestPrice - minPrice) / (maxPrice - minPrice || 1);
+  const curEl = document.getElementById('rs-current');
+  curEl.style.color = ratio < 0.2 ? 'var(--green)' : ratio > 0.8 ? 'var(--accent2)' : 'var(--text)';
+}
+
+// ━━━ 起動 ━━━
+loadData();
+</script>
+</body>
+</html>
