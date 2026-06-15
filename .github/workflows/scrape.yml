@@ -2,8 +2,8 @@ name: Scrape Bus Prices
 
 on:
   schedule:
-    # 日付別スクレイパー: 5日おき JST 10:00 (UTC 1:00)
-    - cron: "0 1 */5 * *"
+    # 日付別スクレイパー: 週3回（月・水・金）JST 10:00 (UTC 1:00)
+    - cron: "0 1 * * 1,3,5"
   workflow_dispatch:
     # 手動実行も可能
     inputs:
@@ -20,10 +20,10 @@ permissions:
   contents: write  # CSV/JSON コミットのため
 
 jobs:
-  # ── 日付別スクレイパー（夜行便のみ、5日おき）──
+  # ── 日付別スクレイパー（夜行便のみ、週3回: 月・水・金）──
   scrape-daily:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 30
     if: github.actor != 'github-actions[bot]'
 
     steps:
