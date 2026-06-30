@@ -3,7 +3,7 @@ name: Scrape Bus Prices
 on:
   schedule:
     # 日付別スクレイパー: 週3回（月・水・金）JST 10:00 (UTC 1:00)
-    - cron: "0 1 * * 1,3,5"
+    - cron: "0 1 * * *"
   workflow_dispatch:
     # 手動実行も可能
     inputs:
